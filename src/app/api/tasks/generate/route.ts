@@ -141,17 +141,43 @@ export async function POST(request: NextRequest) {
         )
       }
       
+      // Handle JSON parsing errors specifically
+      if (error.message.includes('Failed to parse OpenAI') || error.message.includes('JSON parsing failed')) {
+        return NextResponse.json(
+          { 
+            error: 'AI response parsing error',
+            details: `The AI service returned an invalid response format. This usually resolves on retry. Error: ${error.message}`
+          },
+          { status: 500 }
+        )
+      }
+      
+      // Handle OpenAI API errors
+      if (error.message.includes('OpenAI API')) {
+        return NextResponse.json(
+          { 
+            error: 'AI service error',
+            details: `OpenAI API error: ${error.message}. Please try again in a moment.`
+          },
+          { status: 500 }
+        )
+      }
+      
       return NextResponse.json(
         { 
           error: 'Failed to generate tasks',
-          details: error.message
+          details: error.message,
+          suggestion: 'Please try again. If the problem persists, check your API key configuration.'
         },
         { status: 500 }
       )
     }
 
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { 
+        error: 'An unexpected error occurred',
+        details: 'Unknown error during task generation. Please try again.'
+      },
       { status: 500 }
     )
   }

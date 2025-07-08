@@ -123,10 +123,22 @@ export default function DashboardPage() {
         const errorText = await response.text();
         try {
           const errorData = JSON.parse(errorText);
-          throw new Error(errorData.details || errorData.error || 'Failed to generate task suggestions');
-        } catch {
+          const errorMessage = errorData.details || errorData.error || 'Failed to generate task suggestions';
+          
+          // Handle specific error types
+          if (errorData.error === 'AI response parsing error') {
+            throw new Error(`${errorMessage}\n\nTip: This is usually temporary. Try generating tasks again.`);
+          } else if (errorData.error === 'AI service error') {
+            throw new Error(`${errorMessage}\n\nThe AI service is experiencing issues. Please wait a moment and try again.`);
+          } else if (errorData.error === 'OpenAI API key not configured') {
+            throw new Error(`${errorMessage}\n\nPlease check your environment variables or contact support.`);
+          }
+          
+          throw new Error(errorMessage);
+        } catch (parseError) {
           console.error("Non-JSON error response:", errorText);
-          throw new Error('Received an invalid response from the server. Check the server logs for more details.');
+          console.error("Parse error:", parseError);
+          throw new Error(`Server error: ${response.status}. Please try again or check the console for details.`);
         }
       }
 

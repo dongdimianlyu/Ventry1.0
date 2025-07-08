@@ -8,6 +8,14 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({
 }) : null
 
 export async function generateDailyTasks(context: TaskGenerationContext): Promise<Omit<Task, 'id' | 'userId' | 'createdAt'>[]> {
+  console.log('🚀 Starting daily task generation with context:', {
+    goalCount: context.goals.length,
+    previousTaskCount: context.previousTasks.length,
+    knowledgeBaseCount: context.knowledgeBase.length,
+    hasShopifyContext: !!context.shopifyContext,
+    openaiAvailable: !!openai
+  })
+  
   const { goals, previousTasks, knowledgeBase, shopifyContext } = context
 
   const goalsText = goals.map(g => `${g.title} (${g.timeframe}, ${g.priority} priority): ${g.description}`).join('\n')
@@ -115,7 +123,9 @@ Return JSON array with this exact structure:
 IMPORTANT: Generate progressive, intelligent tasks that learn from what's working and address what isn't. Focus on practical execution over abstract planning.`
 
   if (!openai) {
-    // Return fallback tasks for testing when OpenAI is not configured
+    // Return strategic fallback tasks when OpenAI is not configured
+    // These are not filler - they are legitimate business tasks for when API is unavailable
+    console.warn('⚠️ OpenAI API key not configured - using strategic fallback tasks instead of AI generation')
     return [
       {
         title: "Review Q4 financial projections and identify optimization opportunities",
@@ -166,6 +176,7 @@ IMPORTANT: Generate progressive, intelligent tasks that learn from what's workin
   }
 
   try {
+    console.log('🤖 Sending request to OpenAI GPT-4 for daily tasks...')
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -185,16 +196,38 @@ IMPORTANT: Generate progressive, intelligent tasks that learn from what's workin
     const response = completion.choices[0]?.message?.content
     if (!response) throw new Error('No response from OpenAI')
 
+    console.log('✅ Received OpenAI response for daily tasks, length:', response.length)
+    console.log('📋 Response starts with:', response.substring(0, 100) + '...')
+
     // Extract JSON from response (handle potential markdown formatting)
-    let jsonStr = response
-    if (response.includes('```json')) {
-      jsonStr = response.split('```json')[1].split('```')[0]
-    } else if (response.includes('```')) {
-      jsonStr = response.split('```')[1]
+    let jsonStr = response.trim()
+    
+    // Handle markdown code blocks
+    if (jsonStr.includes('```json')) {
+      const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonMatch && jsonMatch[1]) {
+        jsonStr = jsonMatch[1].trim()
+      }
+    } else if (jsonStr.includes('```')) {
+      const codeMatch = jsonStr.match(/```\s*([\s\S]*?)\s*```/)
+      if (codeMatch && codeMatch[1]) {
+        jsonStr = codeMatch[1].trim()
+      }
     }
 
-    // Parse JSON response
-    const tasks = JSON.parse(jsonStr.trim())
+    // Clean up any extra whitespace or characters
+    jsonStr = jsonStr.replace(/^[^[\{]*/, '').replace(/[^\]\}]*$/, '')
+
+    // Parse JSON response with better error handling
+    let tasks
+    try {
+      tasks = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('JSON parsing failed. Raw response:', response)
+      console.error('Cleaned JSON string:', jsonStr)
+      console.error('Parse error:', parseError)
+      throw new Error(`Failed to parse OpenAI response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`)
+    }
     
     // Validate and transform tasks
     return tasks.map((task: { 
@@ -365,7 +398,8 @@ Return JSON object with this exact structure:
 Ensure balanced workload and create synergies between team members' tasks.`
 
   if (!openai) {
-    // Return fallback team tasks for testing
+    // Return strategic fallback team tasks when OpenAI is not configured
+    console.warn('⚠️ OpenAI API key not configured - using strategic fallback team tasks instead of AI generation')
     const fallbackTasks: Record<string, TeamTask[]> = {}
     
     teamMembers.forEach((member) => {
@@ -429,16 +463,35 @@ Ensure balanced workload and create synergies between team members' tasks.`
     const response = completion.choices[0]?.message?.content
     if (!response) throw new Error('No response from OpenAI')
 
-    // Extract JSON from response
-    let jsonStr = response
-    if (response.includes('```json')) {
-      jsonStr = response.split('```json')[1].split('```')[0]
-    } else if (response.includes('```')) {
-      jsonStr = response.split('```')[1]
+    // Extract JSON from response with better error handling
+    let jsonStr = response.trim()
+    
+    // Handle markdown code blocks
+    if (jsonStr.includes('```json')) {
+      const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonMatch && jsonMatch[1]) {
+        jsonStr = jsonMatch[1].trim()
+      }
+    } else if (jsonStr.includes('```')) {
+      const codeMatch = jsonStr.match(/```\s*([\s\S]*?)\s*```/)
+      if (codeMatch && codeMatch[1]) {
+        jsonStr = codeMatch[1].trim()
+      }
     }
 
-    // Parse JSON response
-    const teamTasksRaw = JSON.parse(jsonStr.trim())
+    // Clean up any extra whitespace or characters
+    jsonStr = jsonStr.replace(/^[^[\{]*/, '').replace(/[^\]\}]*$/, '')
+
+    // Parse JSON response with better error handling
+    let teamTasksRaw
+    try {
+      teamTasksRaw = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('Team tasks JSON parsing failed. Raw response:', response)
+      console.error('Cleaned JSON string:', jsonStr)
+      console.error('Parse error:', parseError)
+      throw new Error(`Failed to parse OpenAI team tasks response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`)
+    }
     
     // Transform to include IDs and required fields
     const teamTasks: Record<string, TeamTask[]> = {}
@@ -712,7 +765,8 @@ Return JSON array with this exact structure:
 IMPORTANT: Generate exactly 6 tasks with diverse priorities and approaches. Focus on tasks that move the needle significantly.`
 
   if (!openai) {
-    // Return 6 fallback task suggestions for testing
+    // Return strategic fallback task suggestions when OpenAI is not configured
+    console.warn('⚠️ OpenAI API key not configured - using strategic fallback task suggestions instead of AI generation')
     return [
       {
         id: `suggestion-ceo-1-${Date.now()}`,
@@ -839,16 +893,35 @@ IMPORTANT: Generate exactly 6 tasks with diverse priorities and approaches. Focu
     const response = completion.choices[0]?.message?.content
     if (!response) throw new Error('No response from OpenAI')
 
-    // Extract JSON from response
-    let jsonStr = response
-    if (response.includes('```json')) {
-      jsonStr = response.split('```json')[1].split('```')[0]
-    } else if (response.includes('```')) {
-      jsonStr = response.split('```')[1]
+    // Extract JSON from response with better error handling
+    let jsonStr = response.trim()
+    
+    // Handle markdown code blocks
+    if (jsonStr.includes('```json')) {
+      const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonMatch && jsonMatch[1]) {
+        jsonStr = jsonMatch[1].trim()
+      }
+    } else if (jsonStr.includes('```')) {
+      const codeMatch = jsonStr.match(/```\s*([\s\S]*?)\s*```/)
+      if (codeMatch && codeMatch[1]) {
+        jsonStr = codeMatch[1].trim()
+      }
     }
 
-    // Parse JSON response
-    const tasks = JSON.parse(jsonStr.trim())
+    // Clean up any extra whitespace or characters
+    jsonStr = jsonStr.replace(/^[^[\{]*/, '').replace(/[^\]\}]*$/, '')
+
+    // Parse JSON response with better error handling
+    let tasks
+    try {
+      tasks = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('Task suggestions JSON parsing failed. Raw response:', response)
+      console.error('Cleaned JSON string:', jsonStr)
+      console.error('Parse error:', parseError)
+      throw new Error(`Failed to parse OpenAI task suggestions response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`)
+    }
     
     // Validate and transform tasks
     return tasks.map((task: { 
@@ -968,7 +1041,8 @@ Return JSON object with this exact structure:
 Ensure balanced workload and create synergies between team members' tasks. Generate exactly 6 tasks per person.`
 
   if (!openai) {
-    // Return 6 fallback team task suggestions for testing
+    // Return strategic fallback team task suggestions when OpenAI is not configured
+    console.warn('⚠️ OpenAI API key not configured - using strategic fallback team task suggestions instead of AI generation')
     const fallbackTasks: Record<string, TeamTaskSuggestion[]> = {}
     
     teamMembers.forEach((member) => {
@@ -1019,16 +1093,35 @@ Ensure balanced workload and create synergies between team members' tasks. Gener
     const response = completion.choices[0]?.message?.content
     if (!response) throw new Error('No response from OpenAI')
 
-    // Extract JSON from response
-    let jsonStr = response
-    if (response.includes('```json')) {
-      jsonStr = response.split('```json')[1].split('```')[0]
-    } else if (response.includes('```')) {
-      jsonStr = response.split('```')[1]
+    // Extract JSON from response with better error handling
+    let jsonStr = response.trim()
+    
+    // Handle markdown code blocks
+    if (jsonStr.includes('```json')) {
+      const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
+      if (jsonMatch && jsonMatch[1]) {
+        jsonStr = jsonMatch[1].trim()
+      }
+    } else if (jsonStr.includes('```')) {
+      const codeMatch = jsonStr.match(/```\s*([\s\S]*?)\s*```/)
+      if (codeMatch && codeMatch[1]) {
+        jsonStr = codeMatch[1].trim()
+      }
     }
 
-    // Parse JSON response
-    const teamTasksRaw = JSON.parse(jsonStr.trim())
+    // Clean up any extra whitespace or characters
+    jsonStr = jsonStr.replace(/^[^[\{]*/, '').replace(/[^\]\}]*$/, '')
+
+    // Parse JSON response with better error handling
+    let teamTasksRaw
+    try {
+      teamTasksRaw = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('Team task suggestions JSON parsing failed. Raw response:', response)
+      console.error('Cleaned JSON string:', jsonStr)
+      console.error('Parse error:', parseError)
+      throw new Error(`Failed to parse OpenAI team task suggestions response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`)
+    }
     
     // Transform to include IDs and required fields
     const teamTasks: Record<string, TeamTaskSuggestion[]> = {}

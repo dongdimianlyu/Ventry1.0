@@ -137,9 +137,32 @@ Business Context → Team Structure → Task Distribution → AI Recommendations
 
 ### Environment Setup
 ```bash
-# Required environment variables
+# Required environment variables for production
 OPENAI_API_KEY=your_production_api_key
+
+# Optional Shopify integration (if using e-commerce features)
+SHOPIFY_CLIENT_ID=your_shopify_client_id
+SHOPIFY_CLIENT_SECRET=your_shopify_client_secret
+SHOPIFY_REDIRECT_URI=https://your-domain.com/api/shopify/callback
 ```
+
+### Vercel Deployment
+1. **Set Environment Variables in Vercel Dashboard**:
+   - Go to your project settings in Vercel
+   - Navigate to "Environment Variables"
+   - Add `OPENAI_API_KEY` with your production API key
+   - Ensure it's set for "Production" environment
+
+2. **Deploy**:
+```bash
+vercel --prod
+```
+
+### Other Platforms (Netlify, Railway, etc.)
+Ensure the following environment variable is set:
+- `OPENAI_API_KEY`: Your OpenAI API key for GPT-4 access
+
+**⚠️ Important**: Without the OpenAI API key, the system will use fallback tasks instead of AI-generated context-aware tasks.
 
 ### Build & Deploy
 ```bash
